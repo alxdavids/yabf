@@ -1,0 +1,21 @@
+{
+	"version": 0,
+	"dependencies": [
+		{
+			"importpath": "github.com/reusee/mmh3",
+			"repository": "https://github.com/reusee/mmh3",
+			"vcs": "git",
+			"revision": "64b85163255bbb6af4f0d0eab61ecdda7ea7cd96",
+			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "xojoc.pw/bitset",
+			"repository": "https://github.com/xojoc/bitset",
+			"vcs": "git",
+			"revision": "d09b64cc1c7b9ee80a0fd6c5e83ce8c5479278bd",
+			"branch": "master",
+			"notests": true
+		}
+	]
+}
