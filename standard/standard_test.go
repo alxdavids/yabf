@@ -24,11 +24,13 @@ func TestBloom(t *testing.T) {
 
 	if !sbf.Check(key) {
 		log.Fatalln("Key not found in Bloom filter")
+		t.FailNow()
 	}
 
 	r2, _ := rand.Int(rand.Reader, big.NewInt(max))
 	key2 := r2.Bytes()
 	if sbf.Check(key2) {
 		log.Fatalln("Incorrect key found in Bloom filter")
+		t.FailNow()
 	}
 }

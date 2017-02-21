@@ -10,6 +10,14 @@
 			"notests": true
 		},
 		{
+			"importpath": "github.com/roasbeef/go-go-gadget-paillier",
+			"repository": "https://github.com/roasbeef/go-go-gadget-paillier",
+			"vcs": "git",
+			"revision": "e798e0767cf3e07e3722a3dd2f7458d4d4368b7f",
+			"branch": "master",
+			"notests": true
+		},
+		{
 			"importpath": "xojoc.pw/bitset",
 			"repository": "https://github.com/xojoc/bitset",
 			"vcs": "git",
