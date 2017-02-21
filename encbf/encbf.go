@@ -1,4 +1,4 @@
-package enc
+package encbf
 
 import (
 	"crypto/rand"
