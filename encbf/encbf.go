@@ -10,6 +10,8 @@ import (
 	"hash"
 	"log"
 	"math/big"
+	"sync"
+	"time"
 	"xojoc.pw/bitset"
 )
 
@@ -42,22 +44,30 @@ func New(sbf *standard.StandardBloom, keySize, mode int) bloom.Bloom {
 
 	// construct ciphertexts for bloom filter
 	ebf := make([]*big.Int, uint(L))
+	encTime := time.Now()
+	var wg sync.WaitGroup
+	wg.Add(int(L))
 	for i := uint(0); i < L; i++ {
-		var m *big.Int
-		// Remember that we operate over an encrypted Bloom filter
-		if sbfa.Get(int(i)) {
-			m = big.NewInt(0)
-		} else {
-			m = big.NewInt(1)
-		}
-		c, e := paillier.Encrypt(pub, m.Bytes())
-		if e != nil {
-			log.Fatalln(e)
-		}
+		go func(i uint, ebf []*big.Int) {
+			defer wg.Done()
+			var m *big.Int
+			// Remember that we operate over an encrypted Bloom filter
+			if sbfa.Get(int(i)) {
+				m = big.NewInt(0)
+			} else {
+				m = big.NewInt(1)
+			}
+			c, e := paillier.Encrypt(pub, m.Bytes())
+			if e != nil {
+				log.Fatalln(e)
+			}
 
-		cInt := new(big.Int).SetBytes(c)
-		ebf[i] = cInt
+			cInt := new(big.Int).SetBytes(c)
+			ebf[i] = cInt
+		}(i, ebf)
 	}
+	wg.Wait()
+	log.Println("Enc time: " + time.Since(encTime).String())
 
 	return &EncBloom{
 		h:    h,
@@ -116,6 +126,33 @@ func (this *EncBloom) Reset() {
 	this.bs = make([]uint, this.k)
 	this.h = mmh3.New128()
 	this.ca = [][]*big.Int{}
+}
+
+// Decrypt method for use when interacting with EBF
+func (this *EncBloom) Decrypt() [][][]byte {
+	ptxts := make([][][]byte, len(this.ca))
+	for i, v := range this.ca {
+		m0, e := paillier.Decrypt(this.priv, v[0].Bytes())
+		if e != nil {
+			log.Fatalln(e)
+		}
+		m1, e := paillier.Decrypt(this.priv, v[1].Bytes())
+		if e != nil {
+			log.Fatalln(e)
+		}
+
+		ptxts[i] = [][]byte{m0, m1}
+	}
+
+	return ptxts
+}
+
+func (this *EncBloom) GetPubKey() *paillier.PublicKey {
+	return this.pub
+}
+
+func (this *EncBloom) DumpParams() {
+	log.Printf("L: %v,\n k: %v,\n eps: %v,\n n: %v,\n mode: %v,\n", this.L, this.k, this.eps, this.n, this.mode)
 }
 
 func (this *EncBloom) compUnionPair(combArr []*big.Int, key []byte) []*big.Int {
