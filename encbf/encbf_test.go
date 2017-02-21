@@ -3,7 +3,7 @@ package encbf
 import (
 	"crypto/rand"
 	"github.com/alxdavids/bloom-filter/standard"
-	"github.com/roasbeef/go-go-gadget-paillier"
+	"github.com/mcornejo/go-go-gadget-paillier"
 	"log"
 	"math/big"
 	"testing"
@@ -81,8 +81,12 @@ func TestOps(t *testing.T) {
 
 func unionTest(keys []*big.Int, eblof *EncBloom) {
 	// Check elements that already exist
-	for i, v := range keys {
+	for _, v := range keys {
 		eblof.Check(v.Bytes())
+	}
+	eblof.HomCombine()
+
+	for i := range eblof.ca {
 		pair := eblof.ca[i]
 
 		m0, e := paillier.Decrypt(eblof.priv, pair[0].Bytes())
@@ -109,8 +113,11 @@ func unionTest(keys []*big.Int, eblof *EncBloom) {
 	}
 	key := r.Bytes()
 
+	eblof.ca = [][]*big.Int{}
+	eblof.tmpCa = map[string][]*big.Int{}
 	eblof.Check(key)
-	pair := eblof.ca[n]
+	eblof.HomCombine()
+	pair := eblof.ca[0]
 
 	m0, e := paillier.Decrypt(eblof.priv, pair[0].Bytes())
 	if e != nil {
@@ -128,8 +135,12 @@ func unionTest(keys []*big.Int, eblof *EncBloom) {
 }
 
 func interTest(keys []*big.Int, eblof *EncBloom) {
-	for i, v := range keys {
+	for _, v := range keys {
 		eblof.Check(v.Bytes())
+	}
+	eblof.HomCombine()
+
+	for i := range eblof.ca {
 		pair := eblof.ca[i]
 
 		m0, e := paillier.Decrypt(eblof.priv, pair[0].Bytes())
@@ -141,9 +152,16 @@ func interTest(keys []*big.Int, eblof *EncBloom) {
 			log.Fatalln(e)
 		}
 
-		if new(big.Int).SetBytes(m0).Cmp(v) != 0 {
+		b := false
+		for j := range keys {
+			if new(big.Int).SetBytes(m0).Cmp(keys[j]) == 0 {
+				b = true
+			}
+		}
+
+		if !b {
 			log.Println(new(big.Int).SetBytes(m0))
-			log.Println(v)
+			log.Println(keys[i])
 			log.Fatalln("Should be encryption of original element [0]")
 		}
 		if new(big.Int).SetBytes(m1).Cmp(big.NewInt(0)) != 0 {
@@ -157,8 +175,11 @@ func interTest(keys []*big.Int, eblof *EncBloom) {
 	}
 	key := r.Bytes()
 
+	eblof.ca = [][]*big.Int{}
+	eblof.tmpCa = map[string][]*big.Int{}
 	eblof.Check(key)
-	pair := eblof.ca[n]
+	eblof.HomCombine()
+	pair := eblof.ca[0]
 
 	m1, e := paillier.Decrypt(eblof.priv, pair[1].Bytes())
 	if e != nil {
@@ -171,8 +192,12 @@ func interTest(keys []*big.Int, eblof *EncBloom) {
 }
 
 func caTest(keys []*big.Int, eblof *EncBloom) {
-	for i, v := range keys {
+	for _, v := range keys {
 		eblof.Check(v.Bytes())
+	}
+	eblof.HomCombine()
+
+	for i := range eblof.ca {
 		out := eblof.ca[i]
 
 		m, e := paillier.Decrypt(eblof.priv, out[0].Bytes())
@@ -191,8 +216,11 @@ func caTest(keys []*big.Int, eblof *EncBloom) {
 	}
 	key := r.Bytes()
 
+	eblof.ca = [][]*big.Int{}
+	eblof.tmpCa = map[string][]*big.Int{}
 	eblof.Check(key)
-	out := eblof.ca[n]
+	eblof.HomCombine()
+	out := eblof.ca[0]
 
 	m, e := paillier.Decrypt(eblof.priv, out[0].Bytes())
 	if e != nil {

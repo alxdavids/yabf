@@ -2,6 +2,14 @@
 	"version": 0,
 	"dependencies": [
 		{
+			"importpath": "github.com/mcornejo/go-go-gadget-paillier",
+			"repository": "https://github.com/mcornejo/go-go-gadget-paillier",
+			"vcs": "git",
+			"revision": "dc8ad8e0e9272fc321855c7e6d8f9dcf3de3e695",
+			"branch": "master",
+			"notests": true
+		},
+		{
 			"importpath": "github.com/reusee/mmh3",
 			"repository": "https://github.com/reusee/mmh3",
 			"vcs": "git",

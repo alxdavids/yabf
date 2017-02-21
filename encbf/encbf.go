@@ -5,8 +5,8 @@ import (
 	"encoding/binary"
 	"github.com/alxdavids/bloom-filter"
 	"github.com/alxdavids/bloom-filter/standard"
+	"github.com/mcornejo/go-go-gadget-paillier"
 	"github.com/reusee/mmh3"
-	"github.com/roasbeef/go-go-gadget-paillier"
 	"hash"
 	"log"
 	"math/big"
@@ -16,19 +16,20 @@ import (
 )
 
 type EncBloom struct {
-	h    hash.Hash            // hash function used for query and storage
-	L    uint                 // Length of Bloom filter
-	k    uint                 // Number of hash functions
-	eps  float64              // false-positive probability
-	n    uint                 // predicted size of set
-	ebf  []*big.Int           // complete array of encrypted bits
-	bf   *bitset.BitSet       // original bits (for testing)
-	bs   []uint               // array of k bits from hash functions
-	m    uint                 // size of second set
-	ca   [][]*big.Int         // array of combined ciphertexts
-	pub  *paillier.PublicKey  // public key for encryption
-	priv *paillier.PrivateKey // private key for decryption
-	mode int                  // mode for performing PSO (0 = PSU, 1 = PSI, 2 = PSI/PSU-CA)
+	h     hash.Hash               // hash function used for query and storage
+	L     uint                    // Length of Bloom filter
+	k     uint                    // Number of hash functions
+	eps   float64                 // false-positive probability
+	n     uint                    // predicted size of set
+	ebf   []*big.Int              // complete array of encrypted bits
+	bf    *bitset.BitSet          // original bits (for testing)
+	bs    []uint                  // array of k bits from hash functions
+	m     uint                    // size of second set
+	ca    [][]*big.Int            // array of combined ciphertexts
+	tmpCa map[string]([]*big.Int) // temp array for holding ciphertexts for combining
+	pub   *paillier.PublicKey     // public key for encryption
+	priv  *paillier.PrivateKey    // private key for decryption
+	mode  int                     // mode for performing PSO (0 = PSU, 1 = PSI, 2 = PSI/PSU-CA)
 }
 
 var _ bloom.Bloom = (*EncBloom)(nil)
@@ -70,19 +71,20 @@ func New(sbf *standard.StandardBloom, keySize, mode int) bloom.Bloom {
 	log.Println("Enc time: " + time.Since(encTime).String())
 
 	return &EncBloom{
-		h:    h,
-		k:    k,
-		L:    L,
-		eps:  eps,
-		n:    n,
-		ebf:  ebf,
-		bf:   sbfa,
-		bs:   make([]uint, uint(k)),
-		m:    n,
-		ca:   [][]*big.Int{},
-		pub:  pub,
-		priv: priv,
-		mode: mode,
+		h:     h,
+		k:     k,
+		L:     L,
+		eps:   eps,
+		n:     n,
+		ebf:   ebf,
+		bf:    sbfa,
+		bs:    make([]uint, uint(k)),
+		m:     n,
+		ca:    [][]*big.Int{},
+		tmpCa: map[string][]*big.Int{},
+		pub:   pub,
+		priv:  priv,
+		mode:  mode,
 	}
 }
 
@@ -101,22 +103,43 @@ func (this *EncBloom) Check(key []byte) bool {
 	this.setBitset(key)
 	combArr := make([]*big.Int, this.k)
 	for i, v := range this.bs[:this.k] {
-		c := this.ebf[v]
-		combArr[i] = c
+		combArr[i] = this.ebf[v]
 	}
 
-	// Homomorphically combine ciphertexts
-	var arr []*big.Int
-	if this.mode == 0 {
-		arr = this.compUnionPair(combArr, key)
-	} else if this.mode == 1 {
-		arr = this.compInterPair(combArr, key)
-	} else if this.mode == 2 {
-		arr = this.compCaPair(combArr)
-	}
-	this.ca = append(this.ca, arr)
+	this.tmpCa[string(key)] = combArr
+
+	// var arr []*big.Int
+	// if this.mode == 0 {
+	// 	arr = this.compUnionPair(combArr, key)
+	// } else if this.mode == 1 {
+	// 	arr = this.compInterPair(combArr, key)
+	// } else if this.mode == 2 {
+	// 	arr = this.compCaPair(combArr)
+	// }
+	// this.ca = append(this.ca, arr)
 
 	return true
+}
+
+// Homomorphically combine ciphertexts
+func (this *EncBloom) HomCombine() {
+	var wg sync.WaitGroup
+	wg.Add(len(this.tmpCa))
+	for key, v := range this.tmpCa {
+		go func(key string, v []*big.Int) {
+			defer wg.Done()
+			var arr []*big.Int
+			if this.mode == 0 {
+				arr = this.compUnionPair(v, []byte(key))
+			} else if this.mode == 1 {
+				arr = this.compInterPair(v, []byte(key))
+			} else if this.mode == 2 {
+				arr = this.compCaPair(v)
+			}
+			this.ca = append(this.ca, arr)
+		}(key, v)
+	}
+	wg.Wait()
 }
 
 func (this *EncBloom) Reset() {
@@ -126,6 +149,7 @@ func (this *EncBloom) Reset() {
 	this.bs = make([]uint, this.k)
 	this.h = mmh3.New128()
 	this.ca = [][]*big.Int{}
+	this.tmpCa = map[string][]*big.Int{}
 }
 
 // Decrypt method for use when interacting with EBF
