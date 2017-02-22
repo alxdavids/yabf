@@ -34,7 +34,7 @@ type EncBloom struct {
 
 var _ bloom.Bloom = (*EncBloom)(nil)
 
-func New(sbf *standard.StandardBloom, keySize, mode int) bloom.Bloom {
+func New(sbf *standard.StandardBloom, keySize, mode, maxConcurrentGoroutines int) bloom.Bloom {
 	h, L, k, n, eps, sbfa := sbf.GetParams()
 
 	keyTime := time.Now()
@@ -43,16 +43,39 @@ func New(sbf *standard.StandardBloom, keySize, mode int) bloom.Bloom {
 		log.Fatalln(e)
 	}
 	pub := &priv.PublicKey
-	log.Println(time.Since(keyTime).String())
+	log.Println("keyTime: " + time.Since(keyTime).String())
 
 	// construct ciphertexts for bloom filter
 	ebf := make([]*big.Int, uint(L))
+
+	// Use this channel for limiting goroutines
+	concurrentGoroutines := make(chan struct{}, maxConcurrentGoroutines)
+	for i := 0; i < maxConcurrentGoroutines; i++ {
+		concurrentGoroutines <- struct{}{}
+	}
+	done := make(chan bool)
+	waitForAllJobs := make(chan bool)
+
+	// Collect all the jobs, and since the job is finished, we can
+	// release another spot for a goroutine.
+	go func() {
+		for i := uint(0); i < L; i++ {
+			<-done
+			// Say that another goroutine can now start.
+			concurrentGoroutines <- struct{}{}
+		}
+		// We have collected all the jobs, the program
+		// can now terminate
+		waitForAllJobs <- true
+	}()
+
+	// Start the encryption process with limited goroutines
 	encTime := time.Now()
-	var wg sync.WaitGroup
-	wg.Add(int(L))
 	for i := uint(0); i < L; i++ {
-		go func(i uint, ebf []*big.Int) {
-			defer wg.Done()
+		// Wait till we're allowed to go
+		<-concurrentGoroutines
+
+		go func(i uint, ebf []*big.Int, sbfa *bitset.BitSet) {
 			var m *big.Int
 			// Remember that we operate over an encrypted Bloom filter
 			if sbfa.Get(int(i)) {
@@ -67,9 +90,11 @@ func New(sbf *standard.StandardBloom, keySize, mode int) bloom.Bloom {
 
 			cInt := new(big.Int).SetBytes(c)
 			ebf[i] = cInt
-		}(i, ebf)
+
+			done <- true
+		}(i, ebf, sbfa)
 	}
-	wg.Wait()
+	<-waitForAllJobs
 	log.Println("Enc time: " + time.Since(encTime).String())
 
 	return &EncBloom{
@@ -150,6 +175,11 @@ func (this *EncBloom) Reset() {
 	this.ebf = make([]*big.Int, this.L)
 	this.bs = make([]uint, this.k)
 	this.h = mmh3.New128()
+	this.ca = [][]*big.Int{}
+	this.tmpCa = map[string][]*big.Int{}
+}
+
+func (this *EncBloom) ResetForTesting() {
 	this.ca = [][]*big.Int{}
 	this.tmpCa = map[string][]*big.Int{}
 }

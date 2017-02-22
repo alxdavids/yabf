@@ -13,6 +13,7 @@ import (
 var (
 	max     int64 = 1000
 	n       uint  = 10
+	maxConc int   = 5
 	eps           = 0.0001
 	keySize       = 512
 )
@@ -30,7 +31,7 @@ func TestEncBloom(t *testing.T) {
 		sbf = sbf.Add(key)
 	}
 
-	eblof := New(sbf.(*standard.StandardBloom), keySize, 0).(*EncBloom)
+	eblof := New(sbf.(*standard.StandardBloom), keySize, 0, maxConc).(*EncBloom)
 	decBf := &bitset.BitSet{}
 	for i, v := range eblof.ebf {
 		m, e := paillier.Decrypt(eblof.priv, v.Bytes())
@@ -67,15 +68,15 @@ func TestOps(t *testing.T) {
 		sbf = sbf.Add(key)
 	}
 
-	eblof := New(sbf.(*standard.StandardBloom), keySize, 0).(*EncBloom)
+	eblof := New(sbf.(*standard.StandardBloom), keySize, 0, maxConc).(*EncBloom)
 	unionTest(keys, eblof)
 
 	//reset array and do intersection
-	eblof = New(sbf.(*standard.StandardBloom), keySize, 1).(*EncBloom)
+	eblof = New(sbf.(*standard.StandardBloom), keySize, 1, maxConc).(*EncBloom)
 	interTest(keys, eblof)
 
 	//reset array and do intersection
-	eblof = New(sbf.(*standard.StandardBloom), keySize, 2).(*EncBloom)
+	eblof = New(sbf.(*standard.StandardBloom), keySize, 2, maxConc).(*EncBloom)
 	caTest(keys, eblof)
 }
 
@@ -187,7 +188,7 @@ func interTest(keys []*big.Int, eblof *EncBloom) {
 	}
 
 	if new(big.Int).SetBytes(m1).Cmp(big.NewInt(0)) == 0 {
-		log.Fatalln("Shouldn't be encryption of zero")
+		log.Fatalln("Shouldn't be encryption of zero [int]")
 	}
 }
 
@@ -228,6 +229,6 @@ func caTest(keys []*big.Int, eblof *EncBloom) {
 	}
 
 	if new(big.Int).SetBytes(m).Cmp(big.NewInt(0)) == 0 {
-		log.Fatalln("Shouldn't be encryption of zero")
+		log.Fatalln("Shouldn't be encryption of zero [car]")
 	}
 }
