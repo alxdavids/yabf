@@ -36,12 +36,14 @@ var _ bloom.Bloom = (*EncBloom)(nil)
 
 func New(sbf *standard.StandardBloom, keySize, mode int) bloom.Bloom {
 	h, L, k, n, eps, sbfa := sbf.GetParams()
+
+	keyTime := time.Now()
 	priv, e := paillier.GenerateKey(rand.Reader, keySize)
 	if e != nil {
 		log.Fatalln(e)
 	}
-
 	pub := &priv.PublicKey
+	log.Println(time.Since(keyTime).String())
 
 	// construct ciphertexts for bloom filter
 	ebf := make([]*big.Int, uint(L))
