@@ -160,9 +160,13 @@ func (this *EncBloom) Decrypt() [][][]byte {
 		if e != nil {
 			log.Fatalln(e)
 		}
-		m1, e := paillier.Decrypt(this.priv, v[1].Bytes())
-		if e != nil {
-			log.Fatalln(e)
+
+		var m1 []byte
+		if len(v) > 1 {
+			m1, e = paillier.Decrypt(this.priv, v[1].Bytes())
+			if e != nil {
+				log.Fatalln(e)
+			}
 		}
 
 		ptxts[i] = [][]byte{m0, m1}
