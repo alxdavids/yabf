@@ -43,7 +43,7 @@ func New(sbf *standard.StandardBloom, keySize, mode, maxConcurrentGoroutines int
 		log.Fatalln(e)
 	}
 	pub := &priv.PublicKey
-	log.Println("keyTime: " + time.Since(keyTime).String())
+	log.Printf("Key time: %v", time.Since(keyTime).Seconds())
 
 	// construct ciphertexts for bloom filter
 	ebf := make([]*big.Int, uint(L))
@@ -95,7 +95,7 @@ func New(sbf *standard.StandardBloom, keySize, mode, maxConcurrentGoroutines int
 		}(i, ebf, sbfa)
 	}
 	<-waitForAllJobs
-	log.Println("Enc time: " + time.Since(encTime).String())
+	log.Printf("Enc time: %v", time.Since(encTime).Seconds())
 
 	return &EncBloom{
 		h:     h,
